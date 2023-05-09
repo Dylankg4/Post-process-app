@@ -18,5 +18,6 @@ h1{
     position: absolute;
     width: 100%;
     height: 100%;
+    /*Background color effects depth outline*/
     background-color: #000;
 }
