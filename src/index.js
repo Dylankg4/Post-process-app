@@ -30,11 +30,12 @@ import {
     
     const aspect = window.innerWidth / window.innerHeight
 
-    let pixelRender, halftoneRender, normalRender, currentPass,renderPass;
+    let pixelPass, halftonePass, currentPass, renderPass;
+    let orthographicCamera, perspectiveCamera, camera;
+    let halftoneFolder, pixelFolder
     let params;
-    let pixelCamera, halftoneCamera, normalCamera, camera;
     const state = {
-        mode: 'Halftone',
+        mode: 'No-process',
         options: {
             pixel: true,
             halftone: false,
@@ -42,31 +43,13 @@ import {
         },
     }
 
-
-    renderPass = new RenderPass(scene, camera)
-    pixelCamera = new OrthographicCamera(-aspect, aspect, 1, -1, .1, 100)
-    pixelCamera.position.set(0,0,15)
-    //Set zoom on camera
-    pixelCamera.zoom = .2
-    pixelCamera.updateProjectionMatrix()
-
-    camera = pixelCamera
-
-    pixelRender = new RenderPixelatedPass(3, scene, camera )
-    pixelRender.normalEdgeStrength = .1
-    pixelRender.depthEdgeStrength = .1
-
-    const pixelObj = {
-        camera: pixelCamera,
-        render: pixelRender,
-    }
-
-    halftoneCamera = new PerspectiveCamera(60, window.innerWidth / window.innerHeight, .1, 200)
-    halftoneCamera.position.set(0,0,15)
-    halftoneCamera.updateProjectionMatrix()
+    //Perspective camera used for the halftone and no process passes
+    perspectiveCamera = new PerspectiveCamera(60, window.innerWidth / window.innerHeight, .1, 200)
+    perspectiveCamera.position.set(0,0,15)
+    perspectiveCamera.updateProjectionMatrix()
 
     params = {shape: 1,
-        radius: 4,
+        radius: 5,
         rotateR: Math.PI / 12,
         rotateB: Math.PI / 12*2,
         rotateG: Math.PI / 12*3,
@@ -76,22 +59,71 @@ import {
         greyscale: false,
         disable: false
     }
-    halftoneRender = new HalftonePass(window.innerWidth, window.innerHeight, params)
-    console.log(halftoneRender, pixelRender)
+
+    halftonePass = new HalftonePass(window.innerWidth, window.innerHeight, params)
+    
     const halftoneObj = {
-        camera: halftoneCamera,
-        render: halftoneRender,
+        camera: perspectiveCamera,
+        pass: halftonePass,
+    }
+
+    const controller = {
+        shape: halftonePass.uniforms['shape'].value,
+        radius: halftonePass.uniforms[ 'radius' ].value,
+        rotateR: halftonePass.uniforms[ 'rotateR' ].value / ( Math.PI / 180 ),
+        rotateG: halftonePass.uniforms[ 'rotateG' ].value / ( Math.PI / 180 ),
+        rotateB: halftonePass.uniforms[ 'rotateB' ].value / ( Math.PI / 180 ),
+        scatter: halftonePass.uniforms[ 'scatter' ].value,
+        greyscale: halftonePass.uniforms[ 'greyscale' ].value,
+        blending: halftonePass.uniforms[ 'blending' ].value,
+        blendingMode: halftonePass.uniforms[ 'blendingMode' ].value,
+        disable: halftonePass.uniforms[ 'disable' ].value
     }
 
     renderPass = new RenderPass(scene, camera)
+
+    //Orthographic camera usedee for pixel pass
+    orthographicCamera = new OrthographicCamera(-aspect, aspect, 1, -1, .1, 100)
+    orthographicCamera.position.set(0,0,15)
+    orthographicCamera.zoom = .2
+    orthographicCamera.updateProjectionMatrix()
+
+    camera = orthographicCamera
+
+    pixelPass = new RenderPixelatedPass(3, scene, camera )
+    pixelPass.normalEdgeStrength = .1
+    pixelPass.depthEdgeStrength = .1
+
+    const pixelObj = {
+        camera: orthographicCamera,
+        pass: pixelPass,
+    }
+
+    renderPass = new RenderPass(scene, perspectiveCamera)
 
     const gui = new GUI()
     gui.add(state, 'mode', ['Pixel', 'Halftone', 'No-process']).name('Render').onChange((mode)=>{
         changeRender(mode)
     })
-    let pixelFolder = gui.addFolder("Pixel Render")
-    let halftoneFolder = gui.addFolder("Halftone")
-    let noProcessFolder = gui.addFolder("No process")
+
+    pixelFolder = gui.addFolder("Pixelated")
+    halftoneFolder = gui.addFolder("Halftone")
+
+    pixelFolder.close()
+    pixelFolder.domElement.style.pointerEvents = 'none';
+
+    halftoneFolder.add(controller, 'shape', {'Dot': 1, 'Ellipse': 2, 'Line': 3, 'Square': 4}).onChange( halftoneGui )
+    halftoneFolder.add(controller, 'radius', 1, 25).onChange( halftoneGui )
+    halftoneFolder.add(controller, 'rotateR', 0, 90).onChange( halftoneGui )
+    halftoneFolder.add(controller, 'rotateG', 0, 90).onChange( halftoneGui )
+    halftoneFolder.add(controller, 'rotateB', 0, 90).onChange( halftoneGui )
+    halftoneFolder.add(controller, 'greyscale').onChange( halftoneGui )
+    halftoneFolder.add(controller, 'blending', 0, 1, .01).onChange( halftoneGui )
+    halftoneFolder.add(controller, 'blendingMode', { 'Linear': 1, 'Multiply': 2, 'Add': 3, 'Lighter': 4, 'Darker':5}).onChange( halftoneGui )
+    halftoneFolder.add(controller, 'disable').onChange( halftoneGui )
+
+    halftoneFolder.close()
+    halftoneFolder.domElement.style.pointerEvents = 'none'
 
     //Renderer ***
     const renderer = new WebGLRenderer({ antialias: true })
@@ -102,13 +134,10 @@ import {
     renderer.shadowMap.enabled = true
 
     //Orbit controls. Once initilaized it is not necessary to use elsewhere in code.
-    const controls = new OrbitControls(camera, renderer.domElement)
+    const controls = new OrbitControls(perspectiveCamera, renderer.domElement)
 
-    //Post processing
     const composer =  new EffectComposer(renderer)
-
     composer.addPass(renderPass)
-    console.log(renderPass)
 
     /* Not currently being used
     const depthTexture = new DepthTexture()
@@ -137,20 +166,29 @@ import {
                 state.pixel = false
                 state.halftone = false
                 state.noProcess = true
+                noProcessState()
                 break
         }
     }
 
+    function noProcessState(){
+        composer.removePass(currentPass)
+        camera = halftoneObj.camera
+        controls.object = halftoneObj.camera
+        console.log(camera, controls)
+    }
 
     function pixelState(){
-        //pixelFolder.open()
-        composer.removePass(currentPass)
+        halftoneFolder.close()
+        halftoneFolder.domElement.style.pointerEvents = 'none'
 
-        currentPass = pixelObj.render
-        camera = pixelObj.camera
-        renderPass.camera = camera
+        pixelFolder.open()
+        pixelFolder.domElement.style.pointerEvents = 'auto';
+
+        composer.removePass(currentPass)
         
-        controls.object = camera
+        currentPass = pixelObj.pass
+        controls.object = pixelObj.camera
 
         pixelFolder.add(currentPass, 'pixelSize', 1, 16, 1).name("Pixel Size").onChange((change)=> {
             currentPass.setPixelSize(change)
@@ -161,17 +199,29 @@ import {
         composer.addPass(currentPass)
     }
 
+    function halftoneGui(){
+        halftonePass.uniforms[ 'radius' ].value = controller.radius
+        halftonePass.uniforms[ 'rotateR' ].value = controller.rotateR * ( Math.PI / 180 )
+        halftonePass.uniforms[ 'rotateG' ].value = controller.rotateG * ( Math.PI / 180 )
+        halftonePass.uniforms[ 'rotateB' ].value = controller.rotateB * ( Math.PI / 180 )
+        halftonePass.uniforms[ 'scatter' ].value = controller.scatter
+        halftonePass.uniforms[ 'shape' ].value = controller.shape
+        halftonePass.uniforms[ 'greyscale' ].value = controller.greyscale
+        halftonePass.uniforms[ 'blending' ].value = controller.blending
+        halftonePass.uniforms[ 'blendingMode' ].value = controller.blendingMode
+        halftonePass.uniforms[ 'disable' ].value = controller.disable
+    }
+
     function halftoneState(){
+        pixelFolder.close()
+        pixelFolder.domElement.style.pointerEvents = 'none';
+
+        halftoneFolder.open()
+        halftoneFolder.domElement.style.pointerEvents = 'auto';
         composer.removePass(currentPass)
 
-        currentPass = halftoneObj.render
-        camera = halftoneObj.camera
-        renderPass.camera = camera
-        
-        controls.object = camera
-        console.log(controls.object)
-
-        halftoneFolder.add(currentPass.uniforms, 'shape', {'Dot':1, 'Ellipse':2})
+        currentPass = halftoneObj.pass
+        controls.object = halftoneObj.camera
 
         composer.addPass(currentPass)
     }
@@ -218,11 +268,6 @@ import {
     window.addEventListener('resize', () => {
         renderer.setSize(window.innerWidth, window.innerHeight)
         renderer.setPixelRatio(window.devicePixelRatio)
-
-        /*camera.left(-aspect)
-        camera.right(aspect)
-        camera.top(1)
-        camera.bottom(-1)*/
     })
 
     function animate(){
