@@ -1,4 +1,5 @@
-import Stats from "stats.js";
+//import Stats from "stats.js";
+import Stats from "three/examples/jsm/libs/stats.module.js"
 import { WebGLRenderer, Clock } from "three";
 
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js"
