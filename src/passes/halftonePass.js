@@ -40,5 +40,4 @@ function halftoneGui(){
     halftonePass.uniforms[ 'disable' ].value = halftoneController.disable
 }
 
-console.log(halftonePass, halftoneGui, halftoneController)
 export {halftonePass, halftoneController, halftoneGui}

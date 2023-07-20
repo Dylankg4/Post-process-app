@@ -12,8 +12,8 @@ import  { pixelPass } from "./passes/pixelPass.js"
 import { halftonePass } from "./passes/halftonePass.js";
 import orthographicCamera from "./cameras/orthographicCamera.js"
 import perspectiveCamera  from "./cameras/perspectiveCamera.js";
-import addLights from "./lights.js";
-import { cube, tetra, customMaterial } from "./geometries";
+import { sphere, tetra, customMaterial, mat } from "./geometries";
+import { spotLight } from "./lights.js";
 
 
 let amount, moved;
@@ -50,8 +50,6 @@ container.append(renderer.domElement)
 gui.add(state, 'mode', ['Pixel', 'Halftone', 'No-process']).name('Render').onChange((mode)=>{
     changeState(mode)
 })
-
-addLights()
 
 //Orbit controls.****
 const controls = new OrbitControls(perspectiveCamera, renderer.domElement)
@@ -114,12 +112,17 @@ moved = false
 
 //List of things that will update during animation
 function updateables(delta){
-    customMaterial.uniforms.time.value = clock.getElapsedTime()
-
+    
+    mat.uniforms.uTime.value += delta
+    /*if(customMaterial.userData.shader){
+        customMaterial.userData.shader.uniforms.uTime.value += delta
+    }*/
+    
     const move = delta * .5
-    cube.rotateZ(move)
-    cube.rotateY(move)
-    cube.rotateX(move)
+    sphere.rotateZ(move)
+    sphere.rotateY(move)
+    //sphere.rotateX(move)
+    //sphere.geometry.computeVertexNormals()
     tetra.rotateY(move)
     if(moved){
         tetra.position.y -= move
